@@ -195,7 +195,8 @@ char *infix2postfix( const char *infixExpression ) {
 		return NULL;
 	}
 	
-	Stack *stackForConvert = (Stack*)malloc(sizeof(Stack));
+	//Stack *stackForConvert = (Stack*)malloc(sizeof(Stack));
+	Stack *stackForConvert;
 	Stack_Init(stackForConvert);
 	char infixElem;
 
