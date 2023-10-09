@@ -55,17 +55,20 @@ bool solved;
  */
 void untilLeftPar( Stack *stack, char *postfixExpression, unsigned *postfixExpressionLength ) {
 	solved = false; /* V případě řešení, smažte tento řádek! */
-	char *stackArrCopy = stack->array;
+	
+	char stackTop;
+	
 
 	if(!Stack_IsEmpty(stack)){
-		while (stack->topIndex >= 0){
-			if(stackArrCopy[stack->topIndex] == ")" && stackArrCopy[stack->topIndex] == "("){
-				Stack_Pop(stack);
-			} else{
-				doOperation(stack, stackArrCopy[stack->topIndex], postfixExpression, postfixExpressionLength);
-			}	
+		while (stack->topIndex != '('){
+			Stack_Top(stack, &stackTop);
+			Stack_Pop(stack);
+			postfixExpression[*postfixExpressionLength] = stackTop;
+			(*postfixExpressionLength)++;
 		}
+		Stack_Pop(stack);
 	}
+
 }
 /**
  * Pomocná funkce doOperation.
@@ -85,15 +88,46 @@ void untilLeftPar( Stack *stack, char *postfixExpression, unsigned *postfixExpre
  */
 void doOperation( Stack *stack, char c, char *postfixExpression, unsigned *postfixExpressionLength ) {
 	solved = false; /* V případě řešení, smažte tento řádek! */
-	Stack_Pop(stack);
-	if (calcOperatorPriority(c) >= calcOperatorPriority(stack->array[stack->topIndex])){
-		postfixExpression[postfixExpressionLength] = stack->array[stack->topIndex];
-		postfixExpressionLength++;
-		Stack_Pop(stack);
+	char stackTop;
+
+	if (stack->topIndex == -1){
+		Stack_Push(stack, c);
 	}
 
-	postfixExpression[postfixExpressionLength] = c;
-	postfixExpressionLength++;
+	Stack_Top(stack, &stackTop);
+	
+	if ((c == '+' || c == '-') && (stackTop == '+' || stackTop == '-')){
+		Stack_Pop(stack);
+		postfixExpression[*postfixExpressionLength] = c;
+		(*postfixExpressionLength)++;
+	}
+	if ((c == '*' || c == '/') && (stackTop == '+' || stackTop == '-')){
+		postfixExpression[*postfixExpressionLength] = c;
+		postfixExpression[*postfixExpressionLength+1] = stackTop;
+		(*postfixExpressionLength)++;
+	}
+	if ((c == '-' || c == '+') && (stackTop == '*' || stackTop == '/')){
+		postfixExpression[*postfixExpressionLength] = stackTop;
+		Stack_Pop(stack);
+		Stack_Push(stack, c);
+
+	}
+	if (c == '('){
+		Stack_Push(stack, c);
+	}
+	if (c == ')'){
+		untilLeftPar(stack, postfixExpression, postfixExpressionLength);
+	}
+	if (c == '='){
+		if(!Stack_IsEmpty(stack)){
+		while (stack->topIndex >= 0){
+			Stack_Top(stack, &stackTop);
+			postfixExpression[*postfixExpressionLength] = stackTop;
+			(*postfixExpressionLength)++;
+			Stack_Pop(stack);
+		}
+	}
+	}
 
 }
 
@@ -148,7 +182,7 @@ void doOperation( Stack *stack, char c, char *postfixExpression, unsigned *postf
 char *infix2postfix( const char *infixExpression ) {
 	solved = false; /* V případě řešení, smažte tento řádek! */
 
-	int postfixExpressionLength = 0;
+	unsigned postfixExpressionLength = 0;
 	char* postfixExpression = (char*)malloc(sizeof(char) * MAX_LEN);
 	if(postfixExpression == NULL){
 		return NULL;
@@ -156,24 +190,31 @@ char *infix2postfix( const char *infixExpression ) {
 	
 	Stack *stackForConvert = (Stack*)malloc(sizeof(Stack));
 	Stack_Init(stackForConvert);
+	char infixElem;
 
 	for(int i = 0; i < MAX_LEN; i++){
-		if(infixExpression[i] == ")"){
-			Stack_Push(infixExpression[i]);
-			untilLeftPar(stack, *postfixExpression, &postfixExpressionLength);
+		infixElem = infixExpression[i];
 
-		} else if(isOperator(infixExpression[i])){
-			Stack_Push(infixExpression[i]);
+		if(infixElem == '\0'){
+			postfixExpression[postfixExpressionLength] = '\0';
+			postfixExpressionLength++;
+			break;
+		}
+		
+		if((infixElem < 65) || (infixElem > 90 && infixElem < 97) || (infixElem > 122)){
+			
+			doOperation(stackForConvert, infixElem, postfixExpression, &postfixExpressionLength);
 
 		} else{
-			postfixExpression[postfixExpressionLength] = infixExpression[i];
+			postfixExpression[postfixExpressionLength] = infixElem;
 			postfixExpressionLength++;
 		}
 	}
 
-	postfixExpression[MAX_LEN] = "\0";
+	Stack_Dispose(stackForConvert);
+	free(stackForConvert);
 
-	return *postfixExpression;
+	return postfixExpression;
 }
 
 
@@ -193,7 +234,7 @@ void expr_value_push( Stack *stack, int value ) {
 	char *byteArray = (char *)&value;
 
     for (int i = sizeof(int) - 1; i >= 0; i--) {
-        Stack_Push(byteArray[i]);
+        Stack_Push(stack, byteArray[i]);
     }
 
 }
@@ -212,11 +253,12 @@ void expr_value_push( Stack *stack, int value ) {
  */
 void expr_value_pop( Stack *stack, int *value ) {
 	solved = false; /* V případě řešení, smažte tento řádek! */
-	char *byteArray;
-	for(int i = 0; i < sizeof(int), i++){
-		Stack_Pop(byteArray[i])
+	char *byteArray[sizeof(int)];
+	for(unsigned long i = 0; i < sizeof(int); i++){
+		Stack_Top(stack, byteArray[i]);
+		Stack_Pop(stack);
 	}
-	*value = (int *)byteArray;
+	*value = *((int *)byteArray);
 }
 
 
@@ -242,33 +284,9 @@ void expr_value_pop( Stack *stack, int *value ) {
  *
  * @return výsledek vyhodnocení daného výrazu na základě poskytnutých hodnot proměnných
  */
-bool eval( const char *infixExpression, VariableValue variableValues[], int variableValueCount, int *value ) {
-	solved = false; /* V případě řešení, smažte tento řádek! */
-
-	Stack *stackForCalc = (Stack*)malloc(sizeof(Stack));
-	Stack_Init(stackForCalc);
-	char *postfixExpression;
-
-	char postfixExpression = infix2postfix(infixExpression);
 
 
-
-	for(int i = 0; i < MAX_LEN; i++){
-		if (isVar(postfixExpression[i])){
-			expr_value_push(stackForCalc, valueSearching(postfixExpression[i]));
-		} else{
-			*value = doExpression(postfixExpression[i], stackForCalc);
-			expr_value_push(stackForCalc, value);
-		}
-	}
-
-	free(postfixExpression)
-	return true;
-
-}
-
-
-int valueSearching(char operand){
+int valueSearching(char operand, int variableValueCount, VariableValue variableValues[]){
 		int result;
 		for (int j = 0; j< variableValueCount; j++){
 			result =  variableValues[j].name == operand ? variableValues[j].value : -1;
@@ -277,9 +295,7 @@ int valueSearching(char operand){
 
 }
 
-
-
-bool isVar(char elem){
+ bool isVar(char elem){
 	if ((elem >= 65 &&  elem <= 90) || (elem >= 97 && elem <= 122)){
 		return true;
 	} else{
@@ -287,58 +303,76 @@ bool isVar(char elem){
 	}
 
 }
-return NULL;
 
-
-
-int* doExpression(char* operator, const Stack *stack){
-
-	int* firstValue, secondValue;
-
-	expr_value_pop(stack, secondValue);
-	expr_value_pop(stack, firstValue);
-
-
-	return (calcExpression(operator, fisrtValue, secondValue));
-
-}
-
-
-int calcExpression(char* operator, int* firstValue, int* secondValue){
-
+int* calcExpression(char* operator, int* firstValue, int* secondValue){
+	int* result = NULL;
+	int res;
 	switch(*operator){
-		case "*":
-			return *fisrtValue * *secondValue;
+		case '*':
+			res = *firstValue * *secondValue;
 			break;
-		case "/":
-			return *fisrtValue / *secondValue;
+		case '/':
+			res = *firstValue / *secondValue;
 			break;
-		case "+":
-			return *firstValue + *secondValue;
+		case '+':
+			res = *firstValue + *secondValue;
 			break;
-		case "-":
-			return *firstValue - *secondValue;
+		case '-':
+			res = *firstValue - *secondValue;
 			break;	
+		default:
+			res =  0;
 	}
+	*result = res;
+	return result;
+}
+
+int* doExpression(char* operator, Stack *stack){
+	
+	int firstValue;
+	int secondValue;
+
+	expr_value_pop(stack, &secondValue);
+	expr_value_pop(stack, &firstValue);
+
+	return (calcExpression(operator, &firstValue, &secondValue));
+
+}
+
+bool eval( const char *infixExpression, VariableValue variableValues[], int variableValueCount, int *value ) {
+	solved = false; /* V případě řešení, smažte tento řádek! */
+
+	Stack *stackForCalc = (Stack*)malloc(sizeof(Stack));
+	Stack_Init(stackForCalc);
+	char *postfixExpression = (char*)malloc(sizeof(char) * MAX_LEN);
+
+	*postfixExpression = *infix2postfix(infixExpression);
+
+
+
+	for(int i = 0; i < MAX_LEN; i++){
+		if (isVar(postfixExpression[i])){
+			expr_value_push(stackForCalc, valueSearching(postfixExpression[i], variableValueCount, variableValues));
+		} else{
+			*value = *doExpression(&postfixExpression[i], stackForCalc);
+			expr_value_push(stackForCalc, *value);
+		}
+	}
+
+	free(postfixExpression);
+	Stack_Dispose(stackForCalc);
+	free(stackForCalc);
+	return true;
+
 }
 
 
-bool isOperator(char possibleOperator){
-	if(possibleOperator == "+" && possibleOperator== "-"  && possibleOperator == "*" && possibleOperator == "/"){
-		return true;
-	} else {
-		return false;
-	}
-}
 
-int calcOperatorPriority(char operator){
-	if(operator == "+" && operator=="-"){
-		return 1;
-	} else if(operator == "*" && operator == "/"){
-		return 2;
-	}
 
-}
+
+
+
+
 
 
 /* Konec c204.c */
