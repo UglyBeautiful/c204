@@ -57,7 +57,6 @@ void untilLeftPar( Stack *stack, char *postfixExpression, unsigned *postfixExpre
 	
 	char stackTop;
 	
-
 	if(!Stack_IsEmpty(stack)){
 		Stack_Top(stack, &stackTop);
 		while (stackTop != '('){
@@ -88,35 +87,36 @@ void untilLeftPar( Stack *stack, char *postfixExpression, unsigned *postfixExpre
  * @param postfixExpressionLength Ukazatel na aktuální délku výsledného postfixového výrazu
  */
 void doOperation( Stack *stack, char c, char *postfixExpression, unsigned *postfixExpressionLength ) {
+
 	char stackTop;
 
-	if (stack->topIndex == -1){
-		Stack_Push(stack, c);
-		return;
+	if (!Stack_IsEmpty(stack)){
+		Stack_Top(stack, &stackTop);
 	}
-
-	Stack_Top(stack, &stackTop);
 	
-	if ((c == '+' || c == '-') && (stackTop == '+' || stackTop == '-')){
-		Stack_Pop(stack);
-		postfixExpression[*postfixExpressionLength] = c;
-		(*postfixExpressionLength)++;
+	if ((c == '+' || c == '-')){
+		if((stackTop == '+' || stackTop == '-' || stackTop == '*' || stackTop == '/')){
+			postfixExpression[*postfixExpressionLength] = stackTop;
+			(*postfixExpressionLength)++;
+			Stack_Pop(stack);
+			doOperation(stack, c, postfixExpression, postfixExpressionLength);
+		} else{
+			Stack_Push(stack,c);
+		}
 		return;
 	}
-	if ((c == '*' || c == '/') && (stackTop == '+' || stackTop == '-')){
-		Stack_Push(stack, c);
+	if ((c == '*' || c == '/')){
+		if((stackTop == '+' || stackTop == '-')){
+			Stack_Push(stack, c);
+		} else if(((stackTop == '*' || stackTop == '/'))){
+			postfixExpression[*postfixExpressionLength] = stackTop;
+			(*postfixExpressionLength)++;
+			Stack_Pop(stack);
+			doOperation(stack, c, postfixExpression, postfixExpressionLength);
+		}else{
+			Stack_Push(stack,c);
+		}
 		return;
-		// postfixExpression[*postfixExpressionLength] = c;
-		
-		// postfixExpression[*postfixExpressionLength+1] = stackTop;
-		//(*postfixExpressionLength)+=2;
-	}
-	if ((c == '-' || c == '+') && (stackTop == '*' || stackTop == '/')){
-		postfixExpression[*postfixExpressionLength] = stackTop;
-		Stack_Pop(stack);
-		Stack_Push(stack, c);
-		return;
-
 	}
 	if (c == '('){
 		Stack_Push(stack, c);
@@ -135,9 +135,10 @@ void doOperation( Stack *stack, char c, char *postfixExpression, unsigned *postf
 				Stack_Pop(stack);
 			}
 		}
+		postfixExpression[*postfixExpressionLength] = c;
+		(*postfixExpressionLength)++;
 		return;
 	}
-
 }
 
 /**
@@ -192,11 +193,10 @@ char *infix2postfix( const char *infixExpression ) {
 	unsigned postfixExpressionLength = 0;
 	char* postfixExpression = (char*)malloc(sizeof(char) * MAX_LEN);
 	if(postfixExpression == NULL){
-		return NULL;
+		return NULL;													
 	}
 	
-	//Stack *stackForConvert = (Stack*)malloc(sizeof(Stack));
-	Stack *stackForConvert;
+	Stack *stackForConvert = (Stack*)malloc(sizeof(Stack));
 	Stack_Init(stackForConvert);
 	char infixElem;
 
@@ -208,20 +208,20 @@ char *infix2postfix( const char *infixExpression ) {
 			postfixExpressionLength++;
 			break;
 		}
-		
-		if((infixElem < 65) || (infixElem > 90 && infixElem < 97) || (infixElem > 122)){
-			
+
+		if((infixElem < 65 && infixElem > 57) || (infixElem > 90 && infixElem < 97) || (infixElem > 122) || (infixElem < 48)){
+
 			doOperation(stackForConvert, infixElem, postfixExpression, &postfixExpressionLength);
 
 		} else{
 			postfixExpression[postfixExpressionLength] = infixElem;
 			postfixExpressionLength++;
 		}
-	}
+	}	
 
 	Stack_Dispose(stackForConvert);
 	free(stackForConvert);
-	//stackForConvert = NULL;
+	stackForConvert = NULL;
 
 	return postfixExpression;
 }
@@ -239,13 +239,11 @@ char *infix2postfix( const char *infixExpression ) {
  * @param value hodnota k vložení na zásobník
  */
 void expr_value_push( Stack *stack, int value ) {
-	
-	char *byteArray = (char *)&value;
 
-    for (int i = sizeof(int) - 1; i >= 0; i--) {
-        Stack_Push(stack, byteArray[i]);
+    for (unsigned long i = 0; i < sizeof(int); i++) {
+		char byte = (value >> (i * 8)) & 0xFF;
+        Stack_Push(stack, byte);
     }
-
 }
 
 /**
@@ -261,45 +259,20 @@ void expr_value_push( Stack *stack, int value ) {
  *   výsledné celočíselné hodnoty z vrcholu zásobníku
  */
 void expr_value_pop( Stack *stack, int *value ) {
-	
-	// char byteArray[sizeof(int)];
-	// for(unsigned long i = 0; i < sizeof(int); i++){
-	// 	Stack_Top(stack, &byteArray[i]);
-	// 	Stack_Pop(stack);
-	// }
-	// *value = *((int *)byteArray);
 
 
-	char byteArray[sizeof(int)];
+	char byte;
+	*value = 0;
     
-    // Извлекаем байты из вершины стека
     for (int i = sizeof(int) - 1; i >= 0; i--) {
         if (!Stack_IsEmpty(stack)) {
-			Stack_Top(stack, &byteArray[i]);
+
+			Stack_Top(stack, &byte);
+			*value |= (byte & 0xFF) << (i * 8);
 			Stack_Pop(stack);
-            // Обработка ошибки, если стек пуст
+
         }
     }
-
-    // Объединяем байты в целое число
-    *value = *((int *)byteArray);
-
-	// char *byteArray = (char *)malloc(sizeof(char) * sizeof(int));
-    // if (byteArray == NULL) {
-    //     // Обработка ошибки выделения памяти
-    //     return;
-    // }
-
-    // for (unsigned long i = 0; i < sizeof(int); i++) {
-    //     Stack_Top(stack, &byteArray[i]);
-    //     Stack_Pop(stack);
-    // }
-
-    // // Преобразуем массив байт в int
-    // *value = *((int *)byteArray);
-
-    // // Освобождаем выделенную память
-    // free(byteArray);
 }
 
 
@@ -328,10 +301,15 @@ void expr_value_pop( Stack *stack, int *value ) {
 
 
 int valueSearching(char operand, int variableValueCount, VariableValue variableValues[]){
-		int result;
-		for (int j = 0; j< variableValueCount; j++){
-			result =  variableValues[j].name == operand ? variableValues[j].value : -1;
+		int result = -1;
+		for (int j = 0; j < variableValueCount; j++){
+			if (variableValues[j].name == operand){
+				result = variableValues[j].value;
+				break;
+			} 
+			
 		}
+		
 		return result;
 
 }
@@ -342,11 +320,17 @@ int valueSearching(char operand, int variableValueCount, VariableValue variableV
 	} else{
 		return false;
 	}
+}
 
+bool isOper(char elem){
+	if ((elem == '+') || (elem == '-') || (elem == '*') || (elem == '/')){
+		return true;
+	} else{
+		return false;
+	}
 }
 
 int* calcExpression(char* operator, int* firstValue, int* secondValue){
-	int* result = NULL;
 	int res;
 	switch(*operator){
 		case '*':
@@ -364,7 +348,7 @@ int* calcExpression(char* operator, int* firstValue, int* secondValue){
 		default:
 			res =  0;
 	}
-	*result = res;
+	int* result = &res;
 	return result;
 }
 
@@ -377,33 +361,36 @@ int* doExpression(char* operator, Stack *stack){
 	expr_value_pop(stack, &firstValue);
 
 	return (calcExpression(operator, &firstValue, &secondValue));
-
 }
 
 bool eval( const char *infixExpression, VariableValue variableValues[], int variableValueCount, int *value ) {
-	solved = false;
 	Stack *stackForCalc = (Stack*)malloc(sizeof(Stack));
 	Stack_Init(stackForCalc);
 	char *postfixExpression = (char*)malloc(sizeof(char) * MAX_LEN);
 
-	*postfixExpression = *infix2postfix(infixExpression);
+	postfixExpression = infix2postfix(infixExpression);
 
 
-
-	for(int i = 0; i < MAX_LEN; i++){
+	int i = 0;
+	while (postfixExpression[i] != '\0') {
+		
 		if (isVar(postfixExpression[i])){
-			expr_value_push(stackForCalc, valueSearching(postfixExpression[i], variableValueCount, variableValues));
-		} else{
+			int s = valueSearching(postfixExpression[i], variableValueCount, variableValues);
+
+			expr_value_push(stackForCalc, s);
+			
+		} else if(isOper(postfixExpression[i])){
 			*value = *doExpression(&postfixExpression[i], stackForCalc);
+			
 			expr_value_push(stackForCalc, *value);
 		}
+		i++;
 	}
 
 	free(postfixExpression);
 	Stack_Dispose(stackForCalc);
 	free(stackForCalc);
 	return true;
-
 }
 
 
